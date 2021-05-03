@@ -242,7 +242,7 @@ describe('Post', () => {
       getStaticPropsContext
     )) as GetStaticPropsResult;
 
-    expect(response.props.post).toEqual(expect.objectContaining(postReturn));
+    expect(response.props.post).toEqual(postReturn);
   });
 
   it('should be able to render post document info', () => {
@@ -271,5 +271,13 @@ describe('Post', () => {
     render(<Post post={postProps} />);
 
     screen.getByText('Carregando...');
+  });
+
+  it('should be able to render Header component', () => {
+    const postProps = mockedGetByUIDReturn;
+
+    render(<Post post={postProps} />);
+
+    screen.getByAltText('logo');
   });
 });
