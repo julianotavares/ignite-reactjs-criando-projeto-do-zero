@@ -1,25 +1,22 @@
-/* eslint-disable no-param-reassign */
-/* eslint-disable no-return-assign */
 /* eslint-disable react/no-danger */
+import { useMemo } from 'react';
 import { GetStaticPaths, GetStaticProps } from 'next';
-import { format } from 'date-fns';
+import Head from 'next/head';
+import { FiUser, FiCalendar, FiClock } from 'react-icons/fi';
 import { RichText } from 'prismic-dom';
-import { FiCalendar, FiClock, FiUser } from 'react-icons/fi';
-import { ptBR } from 'date-fns/locale';
-import { useRouter } from 'next/router';
 import Prismic from '@prismicio/client';
-import Link from 'next/link';
-import Header from '../../components/Header';
+import { useRouter } from 'next/router';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 import { getPrismicClient } from '../../services/prismic';
 
-import commonStyles from '../../styles/common.module.scss';
+import Header from '../../components/Header';
 import styles from './post.module.scss';
-import Comments from '../../components/Comments';
 
 interface Post {
+  uid?: string;
   first_publication_date: string | null;
-  last_publication_date: string | null;
   data: {
     title: string;
     banner: {
@@ -37,133 +34,83 @@ interface Post {
 
 interface PostProps {
   post: Post;
-  navigation: {
-    prevPost: {
-      uid: string;
-      data: {
-        title: string;
-      };
-    }[];
-    nextPost: {
-      uid: string;
-      data: {
-        title: string;
-      };
-    }[];
-  };
-  preview: boolean;
 }
 
-export default function Post({
-  post,
-  navigation,
-  preview,
-}: PostProps): JSX.Element {
-  const router = useRouter();
-  if (router.isFallback) {
-    return <h1>Carregando...</h1>;
-  }
+export default function Post({ post }: PostProps): JSX.Element {
+  const subtotal = post.data.content.map(item => {
+    const totalHeading = item.heading.split(' ').length + 1;
+    const totalBody = item.body.reduce((acc, current) => {
+      const count = current.text ? current.text.split(' ').length : 0;
+      return acc + count;
+    }, 0);
+    return totalHeading + totalBody;
+  });
 
-  const totalWords = post.data.content.reduce((total, contentItem) => {
-    total += contentItem.heading.split(' ').length;
-
-    const words = contentItem.body.map(item => item.text.split(' ').length);
-    words.map(word => (total += word));
-    return total;
+  const total = subtotal.reduce((acc, current) => {
+    return acc + current;
   }, 0);
-  const readTime = Math.ceil(totalWords / 200);
 
-  const formatedDate = format(
-    new Date(post.first_publication_date),
-    "dd '/' MM'/'yyyy",
-    {
-      locale: ptBR,
-    }
-  );
+  const readTime = Math.ceil(total / 200);
 
-  const isPostEdited =
-    post.first_publication_date !== post.last_publication_date;
+  const router = useRouter();
 
-  let editionDate: string;
-  if (isPostEdited) {
-    editionDate = format(
-      new Date(post.last_publication_date),
-      "14 '/' 04'/'2021",
-      {
-        locale: ptBR,
-      }
-    );
+  if (router.isFallback) {
+    return <span>Carregando...</span>;
   }
+
+  const formattedDate = (data: string): string => {
+    return format(parseISO(data), 'dd MMM yyyy', {
+      locale: ptBR,
+    });
+  };
 
   return (
     <>
-      <Header />
-      <img src={post.data.banner.url} alt="imagem" className={styles.banner} />
-      <main className={commonStyles.container}>
-        <div className={styles.post}>
-          <div className={styles.postTop}>
-            <h1>{post.data.title}</h1>
-            <ul>
-              <li>
-                <FiCalendar />
-                {formatedDate}
-              </li>
-              <li>
-                <FiUser />
-                {post.data.author}
-              </li>
-              <li>
-                <FiClock />
-                {`${readTime} min`}
-              </li>
-            </ul>
-            <span>{isPostEdited && editionDate}</span>
+      <Head>
+        <title>Home | SpaceTravelling</title>
+      </Head>
+      <Header type="small" />
+      <main>
+        <article key={String('index')}>
+          <img
+            className={styles.banner}
+            src={post.data.banner.url}
+            alt="titulo do post"
+          />
+
+          <div className={styles.postContentArticle}>
+            <header>
+              <h2>{post.data.title}</h2>
+              <div>
+                <div>
+                  <FiCalendar color="#D7D7D7" />
+                  <time>{formattedDate(post.first_publication_date)}</time>
+                </div>
+                <div>
+                  <FiUser color="#D7D7D7" />
+                  <span>{post.data.author}</span>
+                </div>
+                <div>
+                  <FiClock color="#D7D7D7" />
+                  <span>{`${readTime} min`}</span>
+                </div>
+              </div>
+            </header>
+            {post.data.content.map(content => {
+              return (
+                <div key={content.heading} className={styles.postBody}>
+                  <h3>{content.heading}</h3>
+                  <div
+                    className={styles.postContent}
+                    dangerouslySetInnerHTML={{
+                      __html: RichText.asHtml(content.body),
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
-
-          {post.data.content.map(content => {
-            return (
-              <article key={content.heading}>
-                <h2>{content.heading}</h2>
-                <div
-                  className={styles.postContent}
-                  dangerouslySetInnerHTML={{
-                    __html: RichText.asHtml(content.body),
-                  }}
-                />
-              </article>
-            );
-          })}
-        </div>
-
-        <section className={`${styles.navigation} ${commonStyles.container}`}>
-          {navigation?.prevPost.length > 0 && (
-            <div>
-              <h3>{navigation.prevPost[0].data.title}</h3>
-              <Link href={`/post/${navigation.prevPost[0].uid}`}>
-                <a>Post anterior</a>
-              </Link>
-            </div>
-          )}
-
-          {navigation?.nextPost.length > 0 && (
-            <div>
-              <h3>{navigation.nextPost[0].data.title}</h3>
-              <Link href={`/post/${navigation.nextPost[0].uid}`}>
-                <a>Próximo post</a>
-              </Link>
-            </div>
-          )}
-        </section>
-
-        <Comments />
-
-        {preview && (
-          <aside>
-            <Link href="/api/exit-preview">
-              <a className={commonStyles.preview}>Sair do modo Preview</a>
-            </Link>
-          </aside>
-        )}
+        </article>
       </main>
     </>
   );
@@ -172,7 +119,7 @@ export default function Post({
 export const getStaticPaths: GetStaticPaths = async () => {
   const prismic = getPrismicClient();
   const posts = await prismic.query([
-    Prismic.Predicates.at('document.type', 'posts'),
+    Prismic.predicates.at('document.type', 'post'),
   ]);
 
   const paths = posts.results.map(post => {
@@ -189,39 +136,13 @@ export const getStaticPaths: GetStaticPaths = async () => {
   };
 };
 
-export const getStaticProps: GetStaticProps = async ({
-  params,
-  preview = false,
-  previewData,
-}) => {
+export const getStaticProps: GetStaticProps = async context => {
   const prismic = getPrismicClient();
-  const { slug } = params;
-  const response = await prismic.getByUID('posts', String(slug), {
-    ref: previewData?.ref || null,
-  });
-
-  const prevPost = await prismic.query(
-    [Prismic.Predicates.at('document.type', 'posts')],
-    {
-      pageSize: 1,
-      after: response.id,
-      orderings: '[document.first_publication_date]',
-    }
-  );
-
-  const nextPost = await prismic.query(
-    [Prismic.Predicates.at('document.type', 'posts')],
-    {
-      pageSize: 1,
-      after: response.id,
-      orderings: '[document.last_publication_date desc]',
-    }
-  );
-
+  const { slug } = context.params;
+  const response = await prismic.getByUID('post', String(slug), {});
   const post = {
     uid: response.uid,
     first_publication_date: response.first_publication_date,
-    last_publication_date: response.last_publication_date,
     data: {
       title: response.data.title,
       subtitle: response.data.subtitle,
@@ -233,6 +154,7 @@ export const getStaticProps: GetStaticProps = async ({
         return {
           heading: content.heading,
           body: [...content.body],
+          // body: RichText.asHtml(content.body),
         };
       }),
     },
@@ -241,12 +163,6 @@ export const getStaticProps: GetStaticProps = async ({
   return {
     props: {
       post,
-      navigation: {
-        prevPost: prevPost?.results,
-        nextPost: nextPost?.results,
-      },
-      preview,
     },
-    revalidate: 1800,
   };
 };
